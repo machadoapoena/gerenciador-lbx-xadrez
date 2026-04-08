@@ -1,0 +1,316 @@
+import { Query, ID } from 'appwrite';
+import { databases, databaseId, playersCollectionId, scoresCollectionId, eventsCollectionId } from '../lib/appwrite';
+import { RankingEntry, StatCard, TournamentEvent, Player } from '../types';
+
+export interface DashboardData {
+  ranking: RankingEntry[];
+  stats: StatCard[];
+}
+
+export const getPlayers = async (): Promise<Player[]> => {
+  const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
+  if (!projectId || !databaseId || !playersCollectionId) return [];
+
+  try {
+    const response = await databases.listDocuments(
+      databaseId,
+      playersCollectionId,
+      [Query.orderAsc('name'), Query.limit(1000)]
+    );
+    return response.documents.map((doc: any) => ({
+      id: doc.$id,
+      name: doc.name || '',
+      title: doc.title || '',
+      category: doc.category || 'Absoluto',
+      id_lbx: doc.id_lbx || doc.ID_LBX || doc.idLbx || '',
+    }));
+  } catch (error) {
+    console.error('Appwrite GetPlayers Error:', error);
+    return [];
+  }
+};
+
+export const createPlayer = async (data: Omit<Player, 'id'>): Promise<Player | null> => {
+  if (!databaseId || !playersCollectionId) return null;
+  try {
+    const response: any = await databases.createDocument(
+      databaseId,
+      playersCollectionId,
+      ID.unique(),
+      data
+    );
+    return {
+      id: response.$id,
+      name: response.name,
+      title: response.title,
+      category: response.category,
+      id_lbx: response.id_lbx || response.ID_LBX || response.idLbx,
+    };
+  } catch (error) {
+    console.error('Appwrite CreatePlayer Error:', error);
+    return null;
+  }
+};
+
+export const createScore = async (playerId: string, eventId: string, points: number = 0): Promise<boolean> => {
+  if (!databaseId || !scoresCollectionId) return false;
+  try {
+    await databases.createDocument(
+      databaseId,
+      scoresCollectionId,
+      ID.unique(),
+      {
+        players: playerId,
+        event: eventId,
+        pts: points
+      }
+    );
+    return true;
+  } catch (error) {
+    console.error('Appwrite CreateScore Error:', error);
+    return false;
+  }
+};
+
+export const updatePlayer = async (id: string, data: Partial<Omit<Player, 'id'>>): Promise<boolean> => {
+  if (!databaseId || !playersCollectionId) return false;
+  try {
+    await databases.updateDocument(databaseId, playersCollectionId, id, data);
+    return true;
+  } catch (error) {
+    console.error('Appwrite UpdatePlayer Error:', error);
+    return false;
+  }
+};
+
+export const getEvents = async (): Promise<TournamentEvent[]> => {
+  const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
+  
+  if (!projectId || !databaseId || !eventsCollectionId) {
+    return [];
+  }
+
+  try {
+    const response = await databases.listDocuments(
+      databaseId,
+      eventsCollectionId,
+      [Query.orderDesc('data'), Query.limit(100)]
+    );
+
+    return response.documents.map((doc: any) => ({
+      id: doc.$id,
+      name: doc.name || 'Torneio sem nome',
+      date: doc.data || '',
+      url: doc.url || '',
+      idChessResults: doc.id_chess_results || '',
+    }));
+  } catch (error) {
+    console.error('Appwrite Events Error:', error);
+    return [];
+  }
+};
+
+export const createEvent = async (data: Omit<TournamentEvent, 'id'>): Promise<TournamentEvent | null> => {
+  if (!databaseId || !eventsCollectionId) return null;
+  try {
+    const response: any = await databases.createDocument(
+      databaseId,
+      eventsCollectionId,
+      ID.unique(),
+      {
+        name: data.name,
+        data: data.date,
+        url: data.url,
+        id_chess_results: data.idChessResults
+      }
+    );
+    return {
+      id: response.$id,
+      name: response.name,
+      date: response.data,
+      url: response.url,
+      idChessResults: response.id_chess_results
+    };
+  } catch (error) {
+    console.error('Appwrite CreateEvent Error:', error);
+    return null;
+  }
+};
+
+export const updateEvent = async (id: string, data: Partial<Omit<TournamentEvent, 'id'>>): Promise<boolean> => {
+  if (!databaseId || !eventsCollectionId) return false;
+  try {
+    const updateData: any = {};
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.date !== undefined) updateData.data = data.date;
+    if (data.url !== undefined) updateData.url = data.url;
+    if (data.idChessResults !== undefined) updateData.id_chess_results = data.idChessResults;
+    
+    await databases.updateDocument(databaseId, eventsCollectionId, id, updateData);
+    return true;
+  } catch (error) {
+    console.error('Appwrite UpdateEvent Error:', error);
+    return false;
+  }
+};
+
+export const getScoresByEvent = async (eventId: string): Promise<any[]> => {
+  if (!databaseId || !scoresCollectionId) return [];
+  try {
+    const response = await databases.listDocuments(
+      databaseId,
+      scoresCollectionId,
+      [Query.equal('event', eventId), Query.limit(1000)]
+    );
+    return response.documents;
+  } catch (error) {
+    console.error('Appwrite GetScoresByEvent Error:', error);
+    return [];
+  }
+};
+
+export const getScoreByPlayerAndEvent = async (playerId: string, eventId: string): Promise<any | null> => {
+  if (!databaseId || !scoresCollectionId) return null;
+  try {
+    const response = await databases.listDocuments(
+      databaseId,
+      scoresCollectionId,
+      [Query.equal('players', playerId), Query.equal('event', eventId), Query.limit(1)]
+    );
+    return response.documents[0] || null;
+  } catch (error) {
+    console.error('Appwrite GetScoreByPlayerAndEvent Error:', error);
+    return null;
+  }
+};
+
+export const updateScore = async (scoreId: string, points: number): Promise<boolean> => {
+  if (!databaseId || !scoresCollectionId) return false;
+  try {
+    await databases.updateDocument(databaseId, scoresCollectionId, scoreId, { pts: points });
+    return true;
+  } catch (error) {
+    console.error('Appwrite UpdateScore Error:', error);
+    return false;
+  }
+};
+
+export const deleteScore = async (scoreId: string): Promise<boolean> => {
+  if (!databaseId || !scoresCollectionId) return false;
+  try {
+    await databases.deleteDocument(databaseId, scoresCollectionId, scoreId);
+    return true;
+  } catch (error) {
+    console.error('Appwrite DeleteScore Error:', error);
+    return false;
+  }
+};
+
+export const getDashboardData = async (): Promise<DashboardData> => {
+  const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
+  
+  // Default stats
+  const defaultStats: StatCard[] = [
+    { label: 'ÚLTIMA ATUALIZAÇÃO', value: new Date().toLocaleDateString('pt-BR'), icon: 'clock', color: 'bg-yellow-400' },
+    { label: 'JOGADORES ATIVOS', value: '---', icon: 'users', color: 'bg-green-600' },
+    { label: 'TEMPORADA 2026', value: 'Circuito Ouro', icon: 'trophy', color: 'bg-blue-800' },
+  ];
+
+  if (!projectId || !databaseId || !playersCollectionId || !scoresCollectionId) {
+    console.info('Appwrite: Configuração incompleta. Usando dados locais.');
+    return { ranking: [], stats: defaultStats };
+  }
+
+  try {
+    // 1. Fetch players
+    const playersResponse = await databases.listDocuments(
+      databaseId,
+      playersCollectionId,
+      [Query.limit(1000)]
+    );
+    console.log(`Appwrite: ${playersResponse.documents.length} jogadores encontrados.`);
+
+    // 2. Fetch scores
+    const scoresResponse = await databases.listDocuments(
+      databaseId,
+      scoresCollectionId,
+      [Query.limit(5000)]
+    );
+    console.log(`Appwrite: ${scoresResponse.documents.length} registros de pontuação encontrados.`);
+
+    // 3. Aggregate scores
+    const playerScoresMap: Record<string, number> = {};
+    scoresResponse.documents.forEach((scoreDoc: any) => {
+      const playerRef = scoreDoc.players; 
+      const points = Number(scoreDoc.pts) || 0; 
+
+      if (playerRef) {
+        // Appwrite returns relationships as objects or arrays of objects
+        let pId = '';
+        if (Array.isArray(playerRef)) {
+          pId = playerRef[0]?.$id;
+        } else if (typeof playerRef === 'object') {
+          pId = playerRef.$id;
+        } else {
+          pId = playerRef; // Fallback for string ID
+        }
+        
+        if (pId) {
+          playerScoresMap[pId] = (playerScoresMap[pId] || 0) + points;
+        }
+      }
+    });
+
+    // 4. Create ranking
+    const ranking: RankingEntry[] = playersResponse.documents.map((playerDoc: any) => {
+      const totalPoints = playerScoresMap[playerDoc.$id] || 0;
+      return {
+        position: 0,
+        title: playerDoc.title || '',
+        name: playerDoc.name || '',
+        category: playerDoc.category || 'Absoluto',
+        points: totalPoints,
+        isTop3: false,
+      };
+    });
+
+    console.log('Appwrite: Ranking processado com sucesso.');
+
+    const sortedRanking = ranking
+      .sort((a, b) => b.points - a.points)
+      .map((entry, index) => ({
+        ...entry,
+        position: index + 1,
+        isTop3: index < 3,
+      }));
+
+    // 5. Dynamic Stats
+    const dynamicStats: StatCard[] = [
+      { 
+        label: 'ÚLTIMA ATUALIZAÇÃO', 
+        value: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }), 
+        icon: 'clock', 
+        color: 'bg-yellow-400' 
+      },
+      { 
+        label: 'JOGADORES ATIVOS', 
+        value: `${playersResponse.total} Filiados`, 
+        icon: 'users', 
+        color: 'bg-green-600' 
+      },
+      { 
+        label: 'TEMPORADA 2026', 
+        value: 'Circuito Ouro', 
+        icon: 'trophy', 
+        color: 'bg-blue-800' 
+      },
+    ];
+
+    return { ranking: sortedRanking, stats: dynamicStats };
+
+  } catch (error: any) {
+    console.error('Appwrite Error:', error.message);
+    return { ranking: [], stats: defaultStats };
+  }
+};
+

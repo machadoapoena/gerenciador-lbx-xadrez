@@ -1,0 +1,249 @@
+import React, { useState, useEffect } from 'react';
+import { X, UserPlus, Edit2, Save, Search, Users } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Player } from '../types';
+import { getPlayers, createPlayer, updatePlayer } from '../services/appwriteService';
+
+interface PlayersManagementModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+export default function PlayersManagementModal({ isOpen, onClose }: PlayersManagementModalProps) {
+  const [players, setPlayers] = useState<Player[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  
+  // Form state
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [formData, setFormData] = useState({
+    name: '',
+    title: '',
+    category: 'Absoluto',
+    id_lbx: ''
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const fetchPlayersList = async () => {
+    setLoading(true);
+    const data = await getPlayers();
+    setPlayers(data);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchPlayersList();
+    }
+  }, [isOpen]);
+
+  const handleEdit = (player: Player) => {
+    setEditingId(player.id);
+    setFormData({
+      name: player.name,
+      title: player.title,
+      category: player.category,
+      id_lbx: player.id_lbx || ''
+    });
+    // Scroll to top of modal to see form
+    const modalContent = document.getElementById('players-modal-content');
+    if (modalContent) modalContent.scrollTop = 0;
+  };
+
+  const resetForm = () => {
+    setEditingId(null);
+    setFormData({ name: '', title: '', category: 'Absoluto', id_lbx: '' });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    
+    try {
+      if (editingId) {
+        const success = await updatePlayer(editingId, formData);
+        if (success) {
+          setPlayers(prev => prev.map(p => p.id === editingId ? { ...p, ...formData } : p));
+          resetForm();
+        }
+      } else {
+        const newPlayer = await createPlayer(formData);
+        if (newPlayer) {
+          setPlayers(prev => [...prev, newPlayer].sort((a, b) => a.name.localeCompare(b.name)));
+          resetForm();
+        }
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const filteredPlayers = players.filter(p => 
+    p.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+            className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+          />
+          
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            className="relative w-full max-w-4xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+          >
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div className="flex items-center gap-3">
+                <div className="bg-blue-900 p-2 rounded-lg text-white">
+                  <Users size={20} />
+                </div>
+                <h2 className="text-xl font-bold text-[#000829]">Gerenciar Jogadores</h2>
+              </div>
+              <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-500">
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div id="players-modal-content" className="flex-grow overflow-y-auto p-6">
+              {/* Form Section */}
+              <div className="bg-slate-50 rounded-xl p-6 border border-slate-200 mb-8">
+                <h3 className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                  {editingId ? <Edit2 size={14} /> : <UserPlus size={14} />}
+                  {editingId ? 'Editar Jogador' : 'Novo Jogador'}
+                </h3>
+                <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 mb-1 uppercase">Nome Completo</label>
+                    <input
+                      type="text"
+                      value={formData.name}
+                      onChange={e => setFormData({ ...formData, name: e.target.value })}
+                      className="w-full px-4 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-900 outline-none"
+                      placeholder="Ex: Magnus Carlsen"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 mb-1 uppercase">Titulação</label>
+                    <input
+                      type="text"
+                      value={formData.title}
+                      onChange={e => setFormData({ ...formData, title: e.target.value })}
+                      className="w-full px-4 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-900 outline-none"
+                      placeholder="Ex: GM, IM, FM..."
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 mb-1 uppercase">Categoria</label>
+                    <select
+                      value={formData.category}
+                      onChange={e => setFormData({ ...formData, category: e.target.value })}
+                      className="w-full px-4 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-900 outline-none"
+                    >
+                      <option value="Absoluto">Absoluto</option>
+                      <option value="Feminino">Feminino</option>
+                      <option value="Sênior">Sênior</option>
+                      <option value="Sub-18">Sub-18</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 mb-1 uppercase">ID LBX</label>
+                    <input
+                      type="text"
+                      value={formData.id_lbx}
+                      onChange={e => setFormData({ ...formData, id_lbx: e.target.value })}
+                      className="w-full px-4 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-900 outline-none"
+                      placeholder="Ex: 12345"
+                    />
+                  </div>
+                  <div className="md:col-span-3 flex justify-end gap-3 mt-2">
+                    {editingId && (
+                      <button
+                        type="button"
+                        onClick={resetForm}
+                        className="px-6 py-2 text-slate-600 font-bold hover:bg-slate-200 rounded-lg transition-colors"
+                      >
+                        Cancelar
+                      </button>
+                    )}
+                    <button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="px-8 py-2 bg-[#000829] text-white rounded-lg font-bold hover:bg-slate-800 transition-colors flex items-center gap-2 disabled:opacity-50"
+                    >
+                      {isSubmitting ? 'Salvando...' : (editingId ? 'Atualizar' : 'Cadastrar')}
+                      <Save size={18} />
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              {/* List Section */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-bold text-[#000829]">Lista de Jogadores ({players.length})</h3>
+                  <div className="relative w-64">
+                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      value={searchTerm}
+                      onChange={e => setSearchTerm(e.target.value)}
+                      placeholder="Buscar por nome..."
+                      className="w-full pl-10 pr-4 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-900 outline-none"
+                    />
+                  </div>
+                </div>
+
+                {loading ? (
+                  <div className="text-center py-12 text-slate-400 italic">Carregando jogadores...</div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {filteredPlayers.map(player => (
+                      <div key={player.id} className="p-4 bg-white border border-slate-100 rounded-xl flex items-center justify-between hover:border-blue-200 transition-all group">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            {player.title && (
+                              <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-blue-900 text-yellow-400">
+                                {player.title}
+                              </span>
+                            )}
+                            <p className="font-bold text-slate-800">{player.name}</p>
+                          </div>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <p className="text-xs text-slate-500">{player.category}</p>
+                            {player.id_lbx && (
+                              <span className="text-[10px] font-mono text-blue-600 bg-blue-50 px-1.5 rounded">
+                                ID: {player.id_lbx}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleEdit(player)}
+                          className="p-2 text-slate-400 hover:text-blue-900 hover:bg-blue-50 rounded-lg transition-all"
+                          title="Editar Jogador"
+                        >
+                          <Edit2 size={16} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
+  );
+}
