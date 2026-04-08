@@ -265,6 +265,7 @@ export const getDashboardData = async (): Promise<DashboardData> => {
     const ranking: RankingEntry[] = playersResponse.documents.map((playerDoc: any) => {
       const totalPoints = playerScoresMap[playerDoc.$id] || 0;
       return {
+        id: playerDoc.$id,
         position: 0,
         title: playerDoc.title || '',
         name: playerDoc.name || '',
@@ -311,6 +312,74 @@ export const getDashboardData = async (): Promise<DashboardData> => {
   } catch (error: any) {
     console.error('Appwrite Error:', error.message);
     return { ranking: [], stats: defaultStats };
+  }
+};
+
+export const getPlayerHistory = async (playerId: string): Promise<any[]> => {
+  if (!databaseId || !scoresCollectionId || !eventsCollectionId) return [];
+  try {
+    // 1. Fetch player scores
+    const scoresResponse = await databases.listDocuments(
+      databaseId,
+      scoresCollectionId,
+      [Query.equal('players', playerId), Query.limit(100)]
+    );
+
+    // 2. Fetch all events to map names (in case relationship doesn't auto-expand)
+    const eventsResponse = await databases.listDocuments(
+      databaseId,
+      eventsCollectionId,
+      [Query.limit(100)]
+    );
+
+    const eventsMap: Record<string, { name: string; date: string }> = {};
+    eventsResponse.documents.forEach((eventDoc: any) => {
+      eventsMap[eventDoc.$id] = {
+        name: eventDoc.name || 'Torneio sem nome',
+        date: eventDoc.data || '',
+      };
+    });
+
+    // 3. Map history
+    const history = scoresResponse.documents.map((doc: any) => {
+      const eventRef = doc.event;
+      let eventName = 'Torneio Desconhecido';
+      let eventDate = '';
+
+      // Handle Appwrite relationship (can be object, array or string ID)
+      if (eventRef) {
+        if (typeof eventRef === 'object' && !Array.isArray(eventRef)) {
+          eventName = eventRef.name || 'Torneio sem nome';
+          eventDate = eventRef.data || '';
+        } else if (Array.isArray(eventRef) && eventRef[0]) {
+          eventName = eventRef[0].name || 'Torneio sem nome';
+          eventDate = eventRef[0].data || '';
+        } else if (typeof eventRef === 'string') {
+          // Use the map if we only have the ID
+          const mappedEvent = eventsMap[eventRef];
+          if (mappedEvent) {
+            eventName = mappedEvent.name;
+            eventDate = mappedEvent.date;
+          }
+        }
+      }
+
+      return {
+        id: doc.$id,
+        points: doc.pts,
+        eventName,
+        eventDate,
+      };
+    });
+
+    return history.sort((a, b) => {
+      const dateA = a.eventDate ? new Date(a.eventDate).getTime() : 0;
+      const dateB = b.eventDate ? new Date(b.eventDate).getTime() : 0;
+      return dateB - dateA;
+    });
+  } catch (error) {
+    console.error('Appwrite GetPlayerHistory Error:', error);
+    return [];
   }
 };
 

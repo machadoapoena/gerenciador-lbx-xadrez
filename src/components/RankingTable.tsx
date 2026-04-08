@@ -1,13 +1,14 @@
-import { Trophy } from 'lucide-react';
+import { Trophy, History } from 'lucide-react';
 import { motion } from 'motion/react';
 import { RankingEntry } from '../types';
 
 interface RankingTableProps {
   ranking: RankingEntry[];
   title?: string;
+  onViewHistory: (player: RankingEntry) => void;
 }
 
-export default function RankingTable({ ranking, title = "Ranking Geral" }: RankingTableProps) {
+export default function RankingTable({ ranking, title = "Ranking Geral", onViewHistory }: RankingTableProps) {
   return (
     <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex items-center justify-between mb-6">
@@ -30,13 +31,14 @@ export default function RankingTable({ ranking, title = "Ranking Geral" }: Ranki
                 <th className="px-2 py-5 text-[10px] font-bold text-slate-500 tracking-widest uppercase w-16"></th>
                 <th className="px-8 py-5 text-[10px] font-bold text-slate-500 tracking-widest uppercase">Nome</th>
                 <th className="px-8 py-5 text-[10px] font-bold text-slate-500 tracking-widest uppercase">Categoria</th>
+                <th className="px-8 py-5 text-[10px] font-bold text-slate-500 tracking-widest uppercase text-center">Histórico</th>
                 <th className="px-8 py-5 text-[10px] font-bold text-slate-500 tracking-widest uppercase text-right">Pts</th>
               </tr>
             </thead>
             <tbody>
               {ranking.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-8 py-20 text-center text-slate-400 italic">
+                  <td colSpan={6} className="px-8 py-20 text-center text-slate-400 italic">
                     Nenhum jogador com pontuação encontrado.
                   </td>
                 </tr>
@@ -75,6 +77,15 @@ export default function RankingTable({ ranking, title = "Ranking Geral" }: Ranki
                     <span className="text-sm font-medium text-slate-500 bg-slate-100 px-3 py-1 rounded-full">
                       {entry.category}
                     </span>
+                  </td>
+                  <td className="px-8 py-6 text-center">
+                    <button
+                      onClick={() => onViewHistory(entry)}
+                      className="p-2 hover:bg-blue-50 rounded-full text-blue-600 transition-all hover:scale-110 active:scale-95"
+                      title="Ver histórico de torneios"
+                    >
+                      <History size={18} />
+                    </button>
                   </td>
                   <td className="px-8 py-6 text-right">
                     <span className="font-black text-lg text-[#000829]">{entry.points}</span>

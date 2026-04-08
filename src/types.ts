@@ -1,4 +1,5 @@
 export interface RankingEntry {
+  id: string;
   position: number;
   title: string;
   name: string;

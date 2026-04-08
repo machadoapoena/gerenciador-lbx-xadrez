@@ -15,6 +15,7 @@ import LoginModal from './components/LoginModal';
 import PlayersManagementModal from './components/PlayersManagementModal';
 import ImportModal from './components/ImportModal';
 import PlayerSearch from './components/PlayerSearch';
+import PlayerHistoryModal from './components/PlayerHistoryModal';
 import { getDashboardData, getEvents } from './services/appwriteService';
 import { RankingEntry, StatCard, TournamentEvent } from './types';
 import { RANKING_DATA as MOCK_RANKING, STATS as MOCK_STATS } from './constants';
@@ -29,6 +30,8 @@ export default function App() {
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [isPlayersOpen, setIsPlayersOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [selectedPlayer, setSelectedPlayer] = useState<RankingEntry | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
     return localStorage.getItem('lbx_admin_session') === 'true';
   });
@@ -52,6 +55,11 @@ export default function App() {
     : ranking.slice(0, 10);
 
   const rankingTitle = searchQuery ? `Resultados para: "${searchQuery}"` : "Top 10 Ranking Geral";
+
+  const handleViewHistory = (player: RankingEntry) => {
+    setSelectedPlayer(player);
+    setIsHistoryOpen(true);
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -107,6 +115,7 @@ export default function App() {
           <RankingTable 
             ranking={filteredRanking} 
             title={rankingTitle}
+            onViewHistory={handleViewHistory}
           />
         )}
         <CTA />
@@ -122,6 +131,12 @@ export default function App() {
           const dbEvents = await getEvents();
           setEvents(dbEvents);
         }}
+      />
+
+      <PlayerHistoryModal
+        isOpen={isHistoryOpen}
+        onClose={() => setIsHistoryOpen(false)}
+        player={selectedPlayer}
       />
 
       <LoginModal 
