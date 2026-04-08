@@ -4,12 +4,11 @@ import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
 import axios from 'axios';
 import { TournamentEvent, Player } from '../types';
-import { getPlayers, createPlayer, createScore } from '../services/appwriteService';
+import { getPlayers, createPlayer, createScore, getEvents } from '../services/appwriteService';
 
 interface ImportModalProps {
   isOpen: boolean;
   onClose: () => void;
-  events: TournamentEvent[];
 }
 
 interface ExtractedPlayer {
@@ -24,7 +23,8 @@ interface ExtractedPlayer {
   linkedPlayer?: Player;
 }
 
-export default function ImportModal({ isOpen, onClose, events }: ImportModalProps) {
+export default function ImportModal({ isOpen, onClose }: ImportModalProps) {
+  const [events, setEvents] = useState<TournamentEvent[]>([]);
   const [selectedEventId, setSelectedEventId] = useState('');
   
   // Registration File Config
@@ -51,11 +51,17 @@ export default function ImportModal({ isOpen, onClose, events }: ImportModalProp
 
   useEffect(() => {
     if (isOpen) {
-      const fetchExisting = async () => {
-        const players = await getPlayers();
+      const fetchData = async () => {
+        setLoading(true);
+        const [players, eventsData] = await Promise.all([
+          getPlayers(),
+          getEvents()
+        ]);
         setExistingPlayers(players);
+        setEvents(eventsData);
+        setLoading(false);
       };
-      fetchExisting();
+      fetchData();
     }
   }, [isOpen]);
 

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, UserPlus, Edit2, Save, Search, Users } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Player } from '../types';
-import { getPlayers, createPlayer, updatePlayer } from '../services/appwriteService';
+import { searchPlayers, getPlayers, createPlayer, updatePlayer } from '../services/appwriteService';
 
 interface PlayersManagementModalProps {
   isOpen: boolean;
@@ -11,8 +11,10 @@ interface PlayersManagementModalProps {
 
 export default function PlayersManagementModal({ isOpen, onClose }: PlayersManagementModalProps) {
   const [players, setPlayers] = useState<Player[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showAll, setShowAll] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
   
   // Form state
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -29,11 +31,28 @@ export default function PlayersManagementModal({ isOpen, onClose }: PlayersManag
     const data = await getPlayers();
     setPlayers(data);
     setLoading(false);
+    setShowAll(true);
+    setHasSearched(true);
+  };
+
+  const handleSearch = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!searchTerm.trim()) return;
+    
+    setLoading(true);
+    const data = await searchPlayers(searchTerm);
+    setPlayers(data);
+    setLoading(false);
+    setHasSearched(true);
+    setShowAll(false);
   };
 
   useEffect(() => {
-    if (isOpen) {
-      fetchPlayersList();
+    if (!isOpen) {
+      setPlayers([]);
+      setSearchTerm('');
+      setHasSearched(false);
+      setShowAll(false);
     }
   }, [isOpen]);
 
@@ -78,9 +97,7 @@ export default function PlayersManagementModal({ isOpen, onClose }: PlayersManag
     }
   };
 
-  const filteredPlayers = players.filter(p => 
-    p.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const displayedPlayers = players;
 
   return (
     <AnimatePresence>
@@ -197,24 +214,54 @@ export default function PlayersManagementModal({ isOpen, onClose }: PlayersManag
               {/* List Section */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-bold text-[#000829]">Lista de Jogadores ({players.length})</h3>
-                  <div className="relative w-64">
-                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input
-                      type="text"
-                      value={searchTerm}
-                      onChange={e => setSearchTerm(e.target.value)}
-                      placeholder="Buscar por nome..."
-                      className="w-full pl-10 pr-4 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-900 outline-none"
-                    />
+                  <h3 className="font-bold text-[#000829]">
+                    {showAll ? 'Todos os Jogadores' : 'Resultados da Busca'} ({players.length})
+                  </h3>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={fetchPlayersList}
+                      className={`px-3 py-2 text-xs font-bold rounded-lg transition-all border ${
+                        showAll 
+                          ? 'bg-blue-900 text-white border-blue-900' 
+                          : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      MOSTRAR TODOS
+                    </button>
+                    <form onSubmit={handleSearch} className="relative w-64 flex gap-2">
+                      <div className="relative flex-1">
+                        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input
+                          type="text"
+                          value={searchTerm}
+                          onChange={e => setSearchTerm(e.target.value)}
+                          placeholder="Buscar por nome..."
+                          className="w-full pl-10 pr-4 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-900 outline-none"
+                        />
+                      </div>
+                      <button
+                        type="submit"
+                        className="px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 transition-colors"
+                      >
+                        BUSCAR
+                      </button>
+                    </form>
                   </div>
                 </div>
 
                 {loading ? (
-                  <div className="text-center py-12 text-slate-400 italic">Carregando jogadores...</div>
+                  <div className="text-center py-12 text-slate-400 italic">Buscando jogadores...</div>
+                ) : displayedPlayers.length === 0 ? (
+                  <div className="text-center py-12 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                    <p className="text-slate-400 text-sm italic">
+                      {hasSearched 
+                        ? 'Nenhum jogador encontrado para esta busca.' 
+                        : 'Digite um nome e clique em "BUSCAR" ou use "MOSTRAR TODOS".'}
+                    </p>
+                  </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {filteredPlayers.map(player => (
+                    {displayedPlayers.map(player => (
                       <div key={player.id} className="p-4 bg-white border border-slate-100 rounded-xl flex items-center justify-between hover:border-blue-200 transition-all group">
                         <div>
                           <div className="flex items-center gap-2">

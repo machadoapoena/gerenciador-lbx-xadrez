@@ -1,20 +1,34 @@
-import { X, Calendar, Trophy, ExternalLink, Plus, Edit2 } from 'lucide-react';
+import { X, Calendar, Trophy, ExternalLink, Plus, Edit2, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { TournamentEvent } from '../types';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { getEvents } from '../services/appwriteService';
 import TournamentFormModal from './TournamentFormModal';
 
 interface TournamentsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  events: TournamentEvent[];
   isLoggedIn?: boolean;
-  onRefreshEvents?: () => void;
 }
 
-export default function TournamentsModal({ isOpen, onClose, events, isLoggedIn, onRefreshEvents }: TournamentsModalProps) {
+export default function TournamentsModal({ isOpen, onClose, isLoggedIn }: TournamentsModalProps) {
+  const [events, setEvents] = useState<TournamentEvent[]>([]);
+  const [loading, setLoading] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<TournamentEvent | null>(null);
+
+  const fetchEventsList = async () => {
+    setLoading(true);
+    const data = await getEvents();
+    setEvents(data);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchEventsList();
+    }
+  }, [isOpen]);
 
   const handleNewTournament = () => {
     setEditingEvent(null);
@@ -43,7 +57,7 @@ export default function TournamentsModal({ isOpen, onClose, events, isLoggedIn, 
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]"
+              className="relative w-full max-w-5xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]"
             >
               {/* Header */}
               <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
@@ -74,7 +88,12 @@ export default function TournamentsModal({ isOpen, onClose, events, isLoggedIn, 
 
               {/* Content */}
               <div className="flex-grow overflow-y-auto p-6 space-y-4">
-                {events.length === 0 ? (
+                {loading ? (
+                  <div className="flex flex-col items-center justify-center py-20 gap-4">
+                    <Loader2 size={40} className="text-blue-600 animate-spin" />
+                    <p className="text-slate-500 font-bold uppercase text-xs tracking-widest">Carregando torneios...</p>
+                  </div>
+                ) : events.length === 0 ? (
                   <div className="text-center py-12">
                     <Calendar size={48} className="mx-auto text-slate-200 mb-4" />
                     <p className="text-slate-500 italic">Nenhum torneio cadastrado no momento.</p>
@@ -146,7 +165,7 @@ export default function TournamentsModal({ isOpen, onClose, events, isLoggedIn, 
         event={editingEvent}
         onSuccess={() => {
           setIsFormOpen(false);
-          onRefreshEvents?.();
+          fetchEventsList();
         }}
       />
     </>

@@ -8,9 +8,7 @@ export interface DashboardData {
 }
 
 export const getPlayers = async (): Promise<Player[]> => {
-  const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
-  if (!projectId || !databaseId || !playersCollectionId) return [];
-
+  if (!databaseId || !playersCollectionId) return [];
   try {
     const response = await databases.listDocuments(
       databaseId,
@@ -26,6 +24,32 @@ export const getPlayers = async (): Promise<Player[]> => {
     }));
   } catch (error) {
     console.error('Appwrite GetPlayers Error:', error);
+    return [];
+  }
+};
+
+export const searchPlayers = async (searchTerm: string): Promise<Player[]> => {
+  if (!databaseId || !playersCollectionId) return [];
+  try {
+    const queries = [Query.orderAsc('name'), Query.limit(100)];
+    if (searchTerm) {
+      queries.push(Query.contains('name', searchTerm));
+    }
+    
+    const response = await databases.listDocuments(
+      databaseId,
+      playersCollectionId,
+      queries
+    );
+    return response.documents.map((doc: any) => ({
+      id: doc.$id,
+      name: doc.name || '',
+      title: doc.title || '',
+      category: doc.category || 'ABSOLUTO',
+      id_lbx: doc.id_lbx || doc.ID_LBX || doc.idLbx || '',
+    }));
+  } catch (error) {
+    console.error('Appwrite SearchPlayers Error:', error);
     return [];
   }
 };

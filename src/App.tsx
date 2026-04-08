@@ -23,7 +23,6 @@ import { RANKING_DATA as MOCK_RANKING, STATS as MOCK_STATS } from './constants';
 export default function App() {
   const [ranking, setRanking] = useState<RankingEntry[]>([]);
   const [stats, setStats] = useState<StatCard[]>(MOCK_STATS);
-  const [events, setEvents] = useState<TournamentEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [isTournamentsOpen, setIsTournamentsOpen] = useState(false);
@@ -64,10 +63,7 @@ export default function App() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [{ ranking: dbRanking, stats: dbStats }, dbEvents] = await Promise.all([
-          getDashboardData(),
-          getEvents()
-        ]);
+        const { ranking: dbRanking, stats: dbStats } = await getDashboardData();
         
         const isConfigured = !!import.meta.env.VITE_APPWRITE_PROJECT_ID;
 
@@ -80,7 +76,6 @@ export default function App() {
         }
 
         setStats(dbStats);
-        setEvents(dbEvents);
       } catch (error) {
         console.error('Failed to fetch data:', error);
         setRanking(MOCK_RANKING);
@@ -125,12 +120,7 @@ export default function App() {
       <TournamentsModal 
         isOpen={isTournamentsOpen} 
         onClose={() => setIsTournamentsOpen(false)} 
-        events={events}
         isLoggedIn={isLoggedIn}
-        onRefreshEvents={async () => {
-          const dbEvents = await getEvents();
-          setEvents(dbEvents);
-        }}
       />
 
       <PlayerHistoryModal
@@ -153,7 +143,6 @@ export default function App() {
       <ImportModal
         isOpen={isImportOpen}
         onClose={() => setIsImportOpen(false)}
-        events={events}
       />
     </div>
   );
