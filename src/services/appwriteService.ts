@@ -21,7 +21,7 @@ export const getPlayers = async (): Promise<Player[]> => {
       id: doc.$id,
       name: doc.name || '',
       title: doc.title || '',
-      category: doc.category || 'Absoluto',
+      category: doc.category || 'ABSOLUTO',
       id_lbx: doc.id_lbx || doc.ID_LBX || doc.idLbx || '',
     }));
   } catch (error) {
@@ -269,7 +269,7 @@ export const getDashboardData = async (): Promise<DashboardData> => {
         position: 0,
         title: playerDoc.title || '',
         name: playerDoc.name || '',
-        category: playerDoc.category || 'Absoluto',
+        category: playerDoc.category || 'ABSOLUTO',
         points: totalPoints,
         isTop3: false,
       };

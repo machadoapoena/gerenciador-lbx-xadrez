@@ -19,7 +19,7 @@ export default function PlayersManagementModal({ isOpen, onClose }: PlayersManag
   const [formData, setFormData] = useState({
     name: '',
     title: '',
-    category: 'Absoluto',
+    category: 'ABSOLUTO',
     id_lbx: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -52,7 +52,7 @@ export default function PlayersManagementModal({ isOpen, onClose }: PlayersManag
 
   const resetForm = () => {
     setEditingId(null);
-    setFormData({ name: '', title: '', category: 'Absoluto', id_lbx: '' });
+    setFormData({ name: '', title: '', category: 'ABSOLUTO', id_lbx: '' });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -150,10 +150,16 @@ export default function PlayersManagementModal({ isOpen, onClose }: PlayersManag
                       onChange={e => setFormData({ ...formData, category: e.target.value })}
                       className="w-full px-4 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-900 outline-none"
                     >
-                      <option value="Absoluto">Absoluto</option>
-                      <option value="Feminino">Feminino</option>
                       <option value="Sênior">Sênior</option>
-                      <option value="Sub-18">Sub-18</option>
+                      <option value="ABSOLUTO">ABSOLUTO</option>
+                      <option value="FEMININO">FEMININO</option>
+                      <option value="SUB20">SUB20</option>
+                      <option value="SUB18">SUB18</option>
+                      <option value="SUB16">SUB16</option>
+                      <option value="SUB14">SUB14</option>
+                      <option value="SUB12">SUB12</option>
+                      <option value="SUB10">SUB10</option>
+                      <option value="SUB08">SUB08</option>
                     </select>
                   </div>
                   <div>

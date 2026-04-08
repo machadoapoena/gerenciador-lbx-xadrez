@@ -232,7 +232,7 @@ export default function ImportModal({ isOpen, onClose, events }: ImportModalProp
           const newPlayer = await createPlayer({
             name: player.name,
             title: player.title,
-            category: 'Absoluto',
+            category: 'ABSOLUTO',
             id_lbx: player.id_lbx
           });
           if (newPlayer) {

@@ -88,24 +88,24 @@ export default function PlayerHistoryModal({ isOpen, onClose, player }: PlayerHi
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: idx * 0.05 }}
-                    className="flex items-center justify-between p-5 rounded-2xl border border-slate-100 hover:border-blue-100 hover:bg-blue-50/30 transition-all group"
+                    className="flex items-center justify-between p-4 rounded-2xl border border-slate-100 hover:border-blue-100 hover:bg-blue-50/30 transition-all group"
                   >
                     <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-white rounded-xl shadow-sm border border-slate-100 flex items-center justify-center text-slate-400 group-hover:text-blue-500 transition-colors">
-                        <Calendar size={20} />
+                      <div className="w-10 h-10 bg-white rounded-xl shadow-sm border border-slate-100 flex items-center justify-center text-slate-400 group-hover:text-blue-500 transition-colors">
+                        <Calendar size={18} />
                       </div>
                       <div>
-                        <h4 className="font-bold text-slate-800 group-hover:text-blue-900 transition-colors">
+                        <h4 className="text-sm font-bold text-slate-800 group-hover:text-blue-900 transition-colors">
                           {item.eventName}
                         </h4>
-                        <p className="text-xs text-slate-400 font-mono">
+                        <p className="text-[10px] text-slate-400 font-mono">
                           {item.eventDate ? new Date(item.eventDate).toLocaleDateString('pt-BR') : 'Data não informada'}
                         </p>
                       </div>
                     </div>
                     <div className="text-right">
                       <div className="flex items-center gap-1 justify-end">
-                        <span className="text-xl font-black text-[#000829]">{item.points}</span>
+                        <span className="text-lg font-black text-[#000829]">{item.points}</span>
                         <span className="text-[10px] font-bold text-slate-400 uppercase">pts</span>
                       </div>
                     </div>
