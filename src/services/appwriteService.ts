@@ -230,6 +230,97 @@ export const deleteScore = async (scoreId: string): Promise<boolean> => {
   }
 };
 
+export const getRanking = async (searchTerm?: string, limit: number = 10): Promise<RankingEntry[]> => {
+  if (!databaseId || !playersCollectionId || !scoresCollectionId) return [];
+
+  try {
+    let players: any[] = [];
+    
+    if (searchTerm) {
+      // Search mode: Fetch players matching name
+      const playersResponse = await databases.listDocuments(
+        databaseId,
+        playersCollectionId,
+        [Query.contains('name', searchTerm), Query.limit(50)]
+      );
+      players = playersResponse.documents;
+    } else {
+      // Initial mode: Still need all to calculate top 10 accurately 
+      // unless we have a total_points field. 
+      // For now, we'll fetch all players but we could optimize this 
+      // if we add a total_points field to the Player document.
+      const playersResponse = await databases.listDocuments(
+        databaseId,
+        playersCollectionId,
+        [Query.limit(1000)]
+      );
+      players = playersResponse.documents;
+    }
+
+    if (players.length === 0) return [];
+
+    // Fetch scores for the players we found
+    // If we have many players, we fetch all scores (up to 5000)
+    // If we have few (from search), we could filter by player IDs
+    const playerIds = players.map(p => p.$id);
+    
+    let scoresQueries = [Query.limit(5000)];
+    if (searchTerm && playerIds.length <= 100) {
+      scoresQueries.push(Query.equal('players', playerIds));
+    }
+
+    const scoresResponse = await databases.listDocuments(
+      databaseId,
+      scoresCollectionId,
+      scoresQueries
+    );
+
+    // Aggregate scores
+    const playerScoresMap: Record<string, number> = {};
+    scoresResponse.documents.forEach((scoreDoc: any) => {
+      const playerRef = scoreDoc.players;
+      const points = Number(scoreDoc.pts) || 0;
+      
+      let pId = '';
+      if (Array.isArray(playerRef)) pId = playerRef[0]?.$id;
+      else if (typeof playerRef === 'object') pId = playerRef.$id;
+      else pId = playerRef;
+
+      if (pId) {
+        playerScoresMap[pId] = (playerScoresMap[pId] || 0) + points;
+      }
+    });
+
+    // Create ranking entries
+    const ranking: RankingEntry[] = players.map((playerDoc: any) => ({
+      id: playerDoc.$id,
+      position: 0,
+      title: playerDoc.title || '',
+      name: playerDoc.name || '',
+      category: playerDoc.category || 'ABSOLUTO',
+      points: playerScoresMap[playerDoc.$id] || 0,
+      isTop3: false,
+    }));
+
+    // Sort and return
+    const sorted = ranking.sort((a, b) => b.points - a.points);
+    
+    // If it's the initial load, we return only the top 10
+    // If it's a search, we return all matches (up to the search limit)
+    const result = searchTerm ? sorted : sorted.slice(0, limit);
+
+    return result.map((entry, index) => ({
+      ...entry,
+      position: index + 1,
+      isTop3: index < 3,
+    }));
+
+  } catch (error) {
+    console.error('Appwrite GetRanking Error:', error);
+    return [];
+  }
+};
+
 export const getDashboardData = async (): Promise<DashboardData> => {
   const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
   
@@ -241,75 +332,20 @@ export const getDashboardData = async (): Promise<DashboardData> => {
   ];
 
   if (!projectId || !databaseId || !playersCollectionId || !scoresCollectionId) {
-    console.info('Appwrite: Configuração incompleta. Usando dados locais.');
     return { ranking: [], stats: defaultStats };
   }
 
   try {
-    // 1. Fetch players
+    // Fetch top 10 ranking
+    const ranking = await getRanking(undefined, 10);
+
+    // Fetch total players for stats
     const playersResponse = await databases.listDocuments(
       databaseId,
       playersCollectionId,
-      [Query.limit(1000)]
+      [Query.limit(1)]
     );
-    console.log(`Appwrite: ${playersResponse.documents.length} jogadores encontrados.`);
 
-    // 2. Fetch scores
-    const scoresResponse = await databases.listDocuments(
-      databaseId,
-      scoresCollectionId,
-      [Query.limit(5000)]
-    );
-    console.log(`Appwrite: ${scoresResponse.documents.length} registros de pontuação encontrados.`);
-
-    // 3. Aggregate scores
-    const playerScoresMap: Record<string, number> = {};
-    scoresResponse.documents.forEach((scoreDoc: any) => {
-      const playerRef = scoreDoc.players; 
-      const points = Number(scoreDoc.pts) || 0; 
-
-      if (playerRef) {
-        // Appwrite returns relationships as objects or arrays of objects
-        let pId = '';
-        if (Array.isArray(playerRef)) {
-          pId = playerRef[0]?.$id;
-        } else if (typeof playerRef === 'object') {
-          pId = playerRef.$id;
-        } else {
-          pId = playerRef; // Fallback for string ID
-        }
-        
-        if (pId) {
-          playerScoresMap[pId] = (playerScoresMap[pId] || 0) + points;
-        }
-      }
-    });
-
-    // 4. Create ranking
-    const ranking: RankingEntry[] = playersResponse.documents.map((playerDoc: any) => {
-      const totalPoints = playerScoresMap[playerDoc.$id] || 0;
-      return {
-        id: playerDoc.$id,
-        position: 0,
-        title: playerDoc.title || '',
-        name: playerDoc.name || '',
-        category: playerDoc.category || 'ABSOLUTO',
-        points: totalPoints,
-        isTop3: false,
-      };
-    });
-
-    console.log('Appwrite: Ranking processado com sucesso.');
-
-    const sortedRanking = ranking
-      .sort((a, b) => b.points - a.points)
-      .map((entry, index) => ({
-        ...entry,
-        position: index + 1,
-        isTop3: index < 3,
-      }));
-
-    // 5. Dynamic Stats
     const dynamicStats: StatCard[] = [
       { 
         label: 'ÚLTIMA ATUALIZAÇÃO', 
@@ -331,10 +367,10 @@ export const getDashboardData = async (): Promise<DashboardData> => {
       },
     ];
 
-    return { ranking: sortedRanking, stats: dynamicStats };
+    return { ranking, stats: dynamicStats };
 
   } catch (error: any) {
-    console.error('Appwrite Error:', error.message);
+    console.error('Appwrite Dashboard Error:', error.message);
     return { ranking: [], stats: defaultStats };
   }
 };

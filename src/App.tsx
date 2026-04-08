@@ -16,14 +16,16 @@ import PlayersManagementModal from './components/PlayersManagementModal';
 import ImportModal from './components/ImportModal';
 import PlayerSearch from './components/PlayerSearch';
 import PlayerHistoryModal from './components/PlayerHistoryModal';
-import { getDashboardData, getEvents } from './services/appwriteService';
+import { getDashboardData, getEvents, getRanking } from './services/appwriteService';
 import { RankingEntry, StatCard, TournamentEvent } from './types';
 import { RANKING_DATA as MOCK_RANKING, STATS as MOCK_STATS } from './constants';
 
 export default function App() {
   const [ranking, setRanking] = useState<RankingEntry[]>([]);
+  const [searchResults, setSearchResults] = useState<RankingEntry[]>([]);
   const [stats, setStats] = useState<StatCard[]>(MOCK_STATS);
   const [loading, setLoading] = useState(true);
+  const [searching, setSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isTournamentsOpen, setIsTournamentsOpen] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
@@ -45,15 +47,25 @@ export default function App() {
     localStorage.removeItem('lbx_admin_session');
   };
 
-  const handleSearch = (query: string) => {
+  const handleSearch = async (query: string) => {
     setSearchQuery(query);
+    if (query.trim().length >= 3) {
+      setSearching(true);
+      const results = await getRanking(query);
+      setSearchResults(results);
+      setSearching(false);
+    } else if (query.trim().length === 0) {
+      setSearchResults([]);
+    }
   };
 
-  const filteredRanking = searchQuery 
-    ? ranking.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()))
-    : ranking.slice(0, 10);
+  const displayedRanking = searchQuery.trim().length >= 3 
+    ? searchResults 
+    : ranking;
 
-  const rankingTitle = searchQuery ? `Resultados para: "${searchQuery}"` : "Top 10 Ranking Geral";
+  const rankingTitle = searchQuery.trim().length >= 3 
+    ? `Resultados para: "${searchQuery}"` 
+    : "Top 10 Ranking Geral";
 
   const handleViewHistory = (player: RankingEntry) => {
     setSelectedPlayer(player);
@@ -102,13 +114,13 @@ export default function App() {
         <Hero />
         <StatsCards stats={stats} />
         <PlayerSearch onSearch={handleSearch} />
-        {loading ? (
+        {loading || searching ? (
           <div className="flex justify-center items-center py-20">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#000829]"></div>
           </div>
         ) : (
           <RankingTable 
-            ranking={filteredRanking} 
+            ranking={displayedRanking} 
             title={rankingTitle}
             onViewHistory={handleViewHistory}
           />
