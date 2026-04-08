@@ -19,8 +19,6 @@ export default function Footer() {
           
           <div className="flex items-center gap-10">
             <div className="flex items-center gap-8">
-              <a href="#" className="text-[10px] font-bold text-slate-400 uppercase tracking-widest hover:text-white transition-colors">Privacidade</a>
-              <a href="#" className="text-[10px] font-bold text-slate-400 uppercase tracking-widest hover:text-white transition-colors">Termos</a>
               <a href="#" className="text-[10px] font-bold text-slate-400 uppercase tracking-widest hover:text-white transition-colors">Contato</a>
             </div>
             

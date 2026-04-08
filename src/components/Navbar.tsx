@@ -61,8 +61,6 @@ export default function Navbar({ onOpenTournaments, onOpenPlayers, onOpenImport,
                 </button>
               </>
             )}
-            <a href="#" className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors">Clubes</a>
-            <a href="#" className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors">Sobre Nós</a>
           </div>
           
           <div className="flex items-center gap-6">
