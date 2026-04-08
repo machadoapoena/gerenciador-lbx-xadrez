@@ -77,7 +77,7 @@ export const createPlayer = async (data: Omit<Player, 'id'>): Promise<Player | n
 };
 
 export const createScore = async (playerId: string, eventId: string, points: number = 0): Promise<boolean> => {
-  if (!databaseId || !scoresCollectionId) return false;
+  if (!databaseId || !scoresCollectionId || !playersCollectionId) return false;
   try {
     await databases.createDocument(
       databaseId,
@@ -89,6 +89,18 @@ export const createScore = async (playerId: string, eventId: string, points: num
         pts: points
       }
     );
+
+    // Update player's total_points
+    try {
+      const player = await databases.getDocument(databaseId, playersCollectionId, playerId);
+      const currentTotal = Number(player.total_points) || 0;
+      await databases.updateDocument(databaseId, playersCollectionId, playerId, {
+        total_points: currentTotal + points
+      });
+    } catch (e) {
+      console.warn('Appwrite: Could not update total_points field.');
+    }
+
     return true;
   } catch (error) {
     console.error('Appwrite CreateScore Error:', error);
@@ -209,9 +221,34 @@ export const getScoreByPlayerAndEvent = async (playerId: string, eventId: string
 };
 
 export const updateScore = async (scoreId: string, points: number): Promise<boolean> => {
-  if (!databaseId || !scoresCollectionId) return false;
+  if (!databaseId || !scoresCollectionId || !playersCollectionId) return false;
   try {
+    // Get old score to calculate difference
+    const oldScore = await databases.getDocument(databaseId, scoresCollectionId, scoreId);
+    const oldPts = Number(oldScore.pts) || 0;
+    const diff = points - oldPts;
+
     await databases.updateDocument(databaseId, scoresCollectionId, scoreId, { pts: points });
+
+    // Update player's total_points
+    const playerRef = oldScore.players;
+    let pId = '';
+    if (Array.isArray(playerRef)) pId = playerRef[0]?.$id;
+    else if (typeof playerRef === 'object') pId = playerRef.$id;
+    else pId = playerRef;
+
+    if (pId) {
+      try {
+        const player = await databases.getDocument(databaseId, playersCollectionId, pId);
+        const currentTotal = Number(player.total_points) || 0;
+        await databases.updateDocument(databaseId, playersCollectionId, pId, {
+          total_points: currentTotal + diff
+        });
+      } catch (e) {
+        console.warn('Appwrite: Could not update total_points field.');
+      }
+    }
+
     return true;
   } catch (error) {
     console.error('Appwrite UpdateScore Error:', error);
@@ -220,9 +257,33 @@ export const updateScore = async (scoreId: string, points: number): Promise<bool
 };
 
 export const deleteScore = async (scoreId: string): Promise<boolean> => {
-  if (!databaseId || !scoresCollectionId) return false;
+  if (!databaseId || !scoresCollectionId || !playersCollectionId) return false;
   try {
+    // Get score to know how much to subtract
+    const score = await databases.getDocument(databaseId, scoresCollectionId, scoreId);
+    const pts = Number(score.pts) || 0;
+
     await databases.deleteDocument(databaseId, scoresCollectionId, scoreId);
+
+    // Update player's total_points
+    const playerRef = score.players;
+    let pId = '';
+    if (Array.isArray(playerRef)) pId = playerRef[0]?.$id;
+    else if (typeof playerRef === 'object') pId = playerRef.$id;
+    else pId = playerRef;
+
+    if (pId) {
+      try {
+        const player = await databases.getDocument(databaseId, playersCollectionId, pId);
+        const currentTotal = Number(player.total_points) || 0;
+        await databases.updateDocument(databaseId, playersCollectionId, pId, {
+          total_points: Math.max(0, currentTotal - pts)
+        });
+      } catch (e) {
+        console.warn('Appwrite: Could not update total_points field.');
+      }
+    }
+
     return true;
   } catch (error) {
     console.error('Appwrite DeleteScore Error:', error);
@@ -230,14 +291,43 @@ export const deleteScore = async (scoreId: string): Promise<boolean> => {
   }
 };
 
-export const getRanking = async (searchTerm?: string, limit: number = 10): Promise<RankingEntry[]> => {
+export const getRanking = async (searchTerm?: string, limit: number = 10, forceAggregation: boolean = false): Promise<RankingEntry[]> => {
   if (!databaseId || !playersCollectionId || !scoresCollectionId) return [];
 
   try {
+    // Attempt to use total_points field for optimized Top 10
+    // This assumes a 'total_points' attribute exists in the players collection
+    if (!searchTerm && !forceAggregation) {
+      try {
+        const response = await databases.listDocuments(
+          databaseId,
+          playersCollectionId,
+          [
+            Query.orderDesc('total_points'),
+            Query.limit(limit)
+          ]
+        );
+        
+        // Only return if we actually got documents
+        if (response.documents.length > 0) {
+          return response.documents.map((doc: any, index: number) => ({
+            id: doc.$id,
+            position: index + 1,
+            title: doc.title || '',
+            name: doc.name || '',
+            category: doc.category || 'ABSOLUTO',
+            points: doc.total_points || 0,
+            isTop3: index < 3,
+          }));
+        }
+      } catch (e) {
+        console.warn('Appwrite: total_points field not found or error. Falling back to aggregation.');
+      }
+    }
+
     let players: any[] = [];
     
     if (searchTerm) {
-      // Search mode: Fetch players matching name
       const playersResponse = await databases.listDocuments(
         databaseId,
         playersCollectionId,
@@ -245,10 +335,7 @@ export const getRanking = async (searchTerm?: string, limit: number = 10): Promi
       );
       players = playersResponse.documents;
     } else {
-      // Initial mode: Still need all to calculate top 10 accurately 
-      // unless we have a total_points field. 
-      // For now, we'll fetch all players but we could optimize this 
-      // if we add a total_points field to the Player document.
+      // Fallback: Fetch all to calculate
       const playersResponse = await databases.listDocuments(
         databaseId,
         playersCollectionId,
@@ -259,39 +346,44 @@ export const getRanking = async (searchTerm?: string, limit: number = 10): Promi
 
     if (players.length === 0) return [];
 
-    // Fetch scores for the players we found
-    // If we have many players, we fetch all scores (up to 5000)
-    // If we have few (from search), we could filter by player IDs
     const playerIds = players.map(p => p.$id);
     
-    let scoresQueries = [Query.limit(5000)];
-    if (searchTerm && playerIds.length <= 100) {
-      scoresQueries.push(Query.equal('players', playerIds));
+    // If we have total_points but it's not indexed for sorting, we can still use it here
+    const hasTotalPoints = players.some(p => p.total_points !== undefined);
+
+    let playerScoresMap: Record<string, number> = {};
+
+    if (hasTotalPoints && !searchTerm && !forceAggregation) {
+      players.forEach(p => {
+        playerScoresMap[p.$id] = p.total_points || 0;
+      });
+    } else {
+      let scoresQueries = [Query.limit(5000)];
+      if (searchTerm && playerIds.length <= 100) {
+        scoresQueries.push(Query.equal('players', playerIds));
+      }
+
+      const scoresResponse = await databases.listDocuments(
+        databaseId,
+        scoresCollectionId,
+        scoresQueries
+      );
+
+      scoresResponse.documents.forEach((scoreDoc: any) => {
+        const playerRef = scoreDoc.players;
+        const points = Number(scoreDoc.pts) || 0;
+        
+        let pId = '';
+        if (Array.isArray(playerRef)) pId = playerRef[0]?.$id;
+        else if (typeof playerRef === 'object') pId = playerRef.$id;
+        else pId = playerRef;
+
+        if (pId) {
+          playerScoresMap[pId] = (playerScoresMap[pId] || 0) + points;
+        }
+      });
     }
 
-    const scoresResponse = await databases.listDocuments(
-      databaseId,
-      scoresCollectionId,
-      scoresQueries
-    );
-
-    // Aggregate scores
-    const playerScoresMap: Record<string, number> = {};
-    scoresResponse.documents.forEach((scoreDoc: any) => {
-      const playerRef = scoreDoc.players;
-      const points = Number(scoreDoc.pts) || 0;
-      
-      let pId = '';
-      if (Array.isArray(playerRef)) pId = playerRef[0]?.$id;
-      else if (typeof playerRef === 'object') pId = playerRef.$id;
-      else pId = playerRef;
-
-      if (pId) {
-        playerScoresMap[pId] = (playerScoresMap[pId] || 0) + points;
-      }
-    });
-
-    // Create ranking entries
     const ranking: RankingEntry[] = players.map((playerDoc: any) => ({
       id: playerDoc.$id,
       position: 0,
@@ -302,11 +394,7 @@ export const getRanking = async (searchTerm?: string, limit: number = 10): Promi
       isTop3: false,
     }));
 
-    // Sort and return
     const sorted = ranking.sort((a, b) => b.points - a.points);
-    
-    // If it's the initial load, we return only the top 10
-    // If it's a search, we return all matches (up to the search limit)
     const result = searchTerm ? sorted : sorted.slice(0, limit);
 
     return result.map((entry, index) => ({

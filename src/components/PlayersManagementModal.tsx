@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { X, UserPlus, Edit2, Save, Search, Users } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Player } from '../types';
-import { searchPlayers, getPlayers, createPlayer, updatePlayer } from '../services/appwriteService';
+import { searchPlayers, getPlayers, createPlayer, updatePlayer, getRanking } from '../services/appwriteService';
+import { databaseId, playersCollectionId, databases } from '../lib/appwrite';
 
 interface PlayersManagementModalProps {
   isOpen: boolean;
@@ -15,6 +16,9 @@ export default function PlayersManagementModal({ isOpen, onClose }: PlayersManag
   const [searchTerm, setSearchTerm] = useState('');
   const [showAll, setShowAll] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<string | null>(null);
+  const [showConfirmSync, setShowConfirmSync] = useState(false);
   
   // Form state
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -33,6 +37,49 @@ export default function PlayersManagementModal({ isOpen, onClose }: PlayersManag
     setLoading(false);
     setShowAll(true);
     setHasSearched(true);
+  };
+
+  const handleSyncPoints = async () => {
+    setShowConfirmSync(false);
+    setSyncing(true);
+    setSyncStatus('Iniciando sincronização...');
+    console.log('Sync: Iniciando recálculo de totais...');
+    
+    try {
+      // Force aggregation to get the real points from scores collection
+      setSyncStatus('Buscando pontuações no banco...');
+      const fullRanking = await getRanking(undefined, 1000, true);
+      console.log(`Sync: ${fullRanking.length} jogadores para processar.`);
+      
+      if (fullRanking.length === 0) {
+        setSyncStatus('Nenhum jogador encontrado para sincronizar.');
+        setTimeout(() => setSyncStatus(null), 3000);
+        return;
+      }
+
+      let count = 0;
+      for (const entry of fullRanking) {
+        try {
+          setSyncStatus(`Atualizando: ${entry.name} (${count + 1}/${fullRanking.length})`);
+          await databases.updateDocument(databaseId!, playersCollectionId!, entry.id, {
+            total_points: entry.points
+          });
+          count++;
+        } catch (e) {
+          console.error(`Sync: Falha ao atualizar jogador ${entry.name} (${entry.id})`, e);
+        }
+      }
+      
+      setSyncStatus(`Sucesso! ${count} jogadores atualizados.`);
+      console.log(`Sync: Finalizado. ${count} jogadores atualizados.`);
+      setTimeout(() => setSyncStatus(null), 5000);
+    } catch (error) {
+      console.error('Sync error:', error);
+      setSyncStatus('Erro durante a sincronização. Verifique o console.');
+      setTimeout(() => setSyncStatus(null), 5000);
+    } finally {
+      setSyncing(false);
+    }
   };
 
   const handleSearch = async (e?: React.FormEvent) => {
@@ -218,6 +265,47 @@ export default function PlayersManagementModal({ isOpen, onClose }: PlayersManag
                     {showAll ? 'Todos os Jogadores' : 'Resultados da Busca'} ({players.length})
                   </h3>
                   <div className="flex items-center gap-3">
+                    <div className="relative">
+                      {showConfirmSync ? (
+                        <div className="absolute bottom-full right-0 mb-2 w-64 bg-white border border-slate-200 rounded-xl shadow-xl p-4 z-50">
+                          <p className="text-xs text-slate-600 mb-3">Isso irá recalcular e atualizar o campo <strong>total_points</strong> de todos os jogadores. Continuar?</p>
+                          <div className="flex gap-2">
+                            <button 
+                              onClick={() => setShowConfirmSync(false)}
+                              className="flex-1 py-1.5 text-[10px] font-bold text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"
+                            >
+                              CANCELAR
+                            </button>
+                            <button 
+                              onClick={handleSyncPoints}
+                              className="flex-1 py-1.5 text-[10px] font-bold bg-amber-500 text-white hover:bg-amber-600 rounded-lg transition-colors shadow-sm"
+                            >
+                              SIM, RECALCULAR
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
+                      
+                      <button
+                        onClick={() => setShowConfirmSync(true)}
+                        disabled={syncing}
+                        title="Sincronizar total_points (necessário se o campo foi criado agora)"
+                        className="px-3 py-2 text-xs font-bold rounded-lg bg-amber-50 text-amber-600 border border-amber-100 hover:bg-amber-100 transition-all disabled:opacity-50 flex items-center gap-2"
+                      >
+                        {syncing ? (
+                          <>
+                            <span className="animate-spin h-3 w-3 border-2 border-amber-600 border-t-transparent rounded-full"></span>
+                            PROCESSANDO...
+                          </>
+                        ) : 'RECALCULAR TOTAIS'}
+                      </button>
+                      
+                      {syncStatus && (
+                        <div className="absolute top-full right-0 mt-2 whitespace-nowrap bg-blue-900 text-white text-[10px] px-3 py-1.5 rounded-full shadow-lg font-bold animate-pulse z-50">
+                          {syncStatus}
+                        </div>
+                      )}
+                    </div>
                     <button
                       onClick={fetchPlayersList}
                       className={`px-3 py-2 text-xs font-bold rounded-lg transition-all border ${
