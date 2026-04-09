@@ -1,5 +1,5 @@
-import { Query, ID } from 'appwrite';
-import { databases, databaseId, playersCollectionId, scoresCollectionId, eventsCollectionId } from '../lib/appwrite';
+import { Query, ID, ExecutionMethod } from 'appwrite';
+import { databases, functions, databaseId, playersCollectionId, scoresCollectionId, eventsCollectionId, syncFunctionId } from '../lib/appwrite';
 import { RankingEntry, StatCard, TournamentEvent, Player } from '../types';
 
 export interface DashboardData {
@@ -288,6 +288,35 @@ export const deleteScore = async (scoreId: string): Promise<boolean> => {
   } catch (error) {
     console.error('Appwrite DeleteScore Error:', error);
     return false;
+  }
+};
+
+export const recalculateRankingWithFunction = async (): Promise<{ success: boolean; message: string }> => {
+  if (!syncFunctionId) {
+    return { success: false, message: 'ID da função não configurado (VITE_APPWRITE_FUNCTION_SYNC_ID).' };
+  }
+
+  try {
+    const execution = await functions.createExecution(
+      syncFunctionId,
+      '', // data
+      false, // async
+      '/', // path
+      ExecutionMethod.POST
+    );
+
+    if (execution.status === 'completed') {
+      return { success: true, message: 'Recálculo concluído com sucesso via função Appwrite.' };
+    } else {
+      const errorDetail = execution.errors || execution.responseBody || 'Sem detalhes de erro';
+      return { 
+        success: false, 
+        message: `Status: ${execution.status}. Detalhes: ${errorDetail}` 
+      };
+    }
+  } catch (error: any) {
+    console.error('Appwrite Function Error:', error);
+    return { success: false, message: error.message || 'Erro ao executar função Appwrite.' };
   }
 };
 

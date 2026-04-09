@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, UserPlus, Edit2, Save, Search, Users } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Player } from '../types';
-import { searchPlayers, getPlayers, createPlayer, updatePlayer, getRanking } from '../services/appwriteService';
+import { searchPlayers, getPlayers, createPlayer, updatePlayer, getRanking, recalculateRankingWithFunction } from '../services/appwriteService';
 import { databaseId, playersCollectionId, databases } from '../lib/appwrite';
 
 interface PlayersManagementModalProps {
@@ -42,14 +42,43 @@ export default function PlayersManagementModal({ isOpen, onClose }: PlayersManag
   const handleSyncPoints = async () => {
     setShowConfirmSync(false);
     setSyncing(true);
-    setSyncStatus('Iniciando sincronização...');
-    console.log('Sync: Iniciando recálculo de totais...');
+    setSyncStatus('Chamando função Appwrite...');
     
     try {
-      // Force aggregation to get the real points from scores collection
+      const result = await recalculateRankingWithFunction();
+      
+      if (result.success) {
+        setSyncStatus('Sucesso! Totais atualizados.');
+        setTimeout(() => setSyncStatus(null), 5000);
+      } else {
+        console.error('Sync: Falha na função Appwrite:', result.message);
+        setSyncStatus(`Erro: ${result.message}`);
+        // Keep error visible for 15 seconds
+        setTimeout(() => setSyncStatus(null), 15000);
+      }
+    } catch (error) {
+      console.error('Sync error:', error);
+      setSyncStatus('Erro ao executar função.');
+      setTimeout(() => setSyncStatus(null), 10000);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  /**
+   * BACKUP: Lógica original de sincronização via cliente
+   * Mantida para referência ou caso a função Appwrite não esteja disponível
+   */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const handleSyncPointsBackup = async () => {
+    setSyncing(true);
+    setSyncStatus('Iniciando backup local...');
+    console.log('Sync Backup: Iniciando recálculo de totais...');
+    
+    try {
       setSyncStatus('Buscando pontuações no banco...');
       const fullRanking = await getRanking(undefined, 1000, true);
-      console.log(`Sync: ${fullRanking.length} jogadores para processar.`);
+      console.log(`Sync Backup: ${fullRanking.length} jogadores para processar.`);
       
       if (fullRanking.length === 0) {
         setSyncStatus('Nenhum jogador encontrado para sincronizar.');
@@ -66,16 +95,16 @@ export default function PlayersManagementModal({ isOpen, onClose }: PlayersManag
           });
           count++;
         } catch (e) {
-          console.error(`Sync: Falha ao atualizar jogador ${entry.name} (${entry.id})`, e);
+          console.error(`Sync Backup: Falha ao atualizar jogador ${entry.name} (${entry.id})`, e);
         }
       }
       
       setSyncStatus(`Sucesso! ${count} jogadores atualizados.`);
-      console.log(`Sync: Finalizado. ${count} jogadores atualizados.`);
+      console.log(`Sync Backup: Finalizado. ${count} jogadores atualizados.`);
       setTimeout(() => setSyncStatus(null), 5000);
     } catch (error) {
-      console.error('Sync error:', error);
-      setSyncStatus('Erro durante a sincronização. Verifique o console.');
+      console.error('Sync Backup error:', error);
+      setSyncStatus('Erro no backup local.');
       setTimeout(() => setSyncStatus(null), 5000);
     } finally {
       setSyncing(false);

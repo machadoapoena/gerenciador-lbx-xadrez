@@ -17,7 +17,7 @@ export default function Footer() {
             <span className="text-xl font-bold text-white tracking-tight">Liga Brasileira de Xadrez</span>
           </div>
           
-          <div className="flex items-center gap-10">
+          <div className="flex items-center gap-10"> 
             <div className="flex items-center gap-8">
               <a href="#" className="text-[10px] font-bold text-slate-400 uppercase tracking-widest hover:text-white transition-colors">Contato</a>
             </div>
